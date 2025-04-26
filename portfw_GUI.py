@@ -186,13 +186,16 @@ def delete():
     int_port = request.form['int_port']
     proto    = request.form['proto']
     try:
-        # Entfernen anhand iptables-Argumenten
+        # Entfernen der NAT-Regel
         run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
              '-p', proto, '--dport', ext_port,
              '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
-        run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
-             '-p', proto, '--dport', int_port, '-d', int_ip,
-             '-j', 'ACCEPT'])
+        
+        # Entfernen der FORWARD-Regel nur, wenn intif einen gültigen Wert hat
+        if intif and intif != "None":
+            run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
+                 '-p', proto, '--dport', int_port, '-d', int_ip,
+                 '-j', 'ACCEPT'])
     except RuntimeError as e:
         flash(str(e))
     else:
