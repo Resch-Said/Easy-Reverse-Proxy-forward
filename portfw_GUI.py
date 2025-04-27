@@ -160,16 +160,38 @@ def apply_rule(rule):
              '-j', 'ACCEPT'])
 
 @app.before_first_request
+def restore_persistent_rules_on_first_request():
+    # Diese Funktion wird nur zur Kompatibilität mit älteren Flask-Versionen beibehalten
+    pass
+
 def restore_persistent_rules():
+    print("Wiederherstellung der persistenten Regeln...")
     rules = load_persisted_rules()
+    print(f"Gefundene Regeln: {len(rules)}")
     for rule in rules:
         try:
-            # Check if rule already exists
-            run(['iptables', '-t', 'nat', '-C', 'PREROUTING', '-i', rule['extif'],
-                 '-p', 'tcp', '--dport', rule['ext_port'],
-                 '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
-        except RuntimeError:
+            # Zuerst löschen wir eventuell vorhandene Regeln, um Duplikate zu vermeiden
+            try:
+                for proto in ('tcp', 'udp'):
+                    # NAT-Regel löschen
+                    run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', rule['extif'],
+                        '-p', proto, '--dport', rule['ext_port'],
+                        '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
+                    # Forward-Regel löschen
+                    run(['iptables', '-D', 'FORWARD', '-i', rule['extif'], '-o', rule['intif'],
+                        '-p', proto, '--dport', rule['int_port'], '-d', rule['int_ip'],
+                        '-j', 'ACCEPT'])
+            except RuntimeError:
+                # Ignorieren, wenn die Regeln nicht existieren
+                pass
+
+            # Dann neue Regeln hinzufügen
             apply_rule(rule)
+            print(f"Regel wiederhergestellt: {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
+        except RuntimeError as e:
+            print(f"Fehler beim Wiederherstellen der Regel: {str(e)}")
+            # Wir lassen die Regel trotzdem in der Persistenzdatei, da sie möglicherweise
+            # später manuell wiederhergestellt werden kann
 
 @app.route('/')
 def index():
@@ -210,28 +232,58 @@ def delete():
     ext_port = request.form['ext_port']
     int_ip   = request.form['int_ip']
     int_port = request.form['int_port']
-    try:
-        # Remove NAT and FORWARD rules
-        for proto in ('tcp', 'udp'):
-            run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
-                 '-p', proto, '--dport', ext_port,
-                 '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
-            run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
-                 '-p', proto, '--dport', int_port, '-d', int_ip,
-                 '-j', 'ACCEPT'])
-    except RuntimeError as e:
-        flash(str(e))
-        return redirect(url_for('index'))
-    # Update persistence
+    
+    # Update persistence first - immer die Regel aus der JSON entfernen
     rules = load_persisted_rules()
+    old_rules_count = len(rules)
     rules = [r for r in rules if not (r['extif']==extif and r['intif']==intif \
               and r['ext_port']==ext_port and r['int_ip']==int_ip and r['int_port']==int_port)]
     save_persisted_rules(rules)
-    flash(f"Rule {extif}:{ext_port} removed.")
+    
+    # Jetzt versuchen, die iptables-Regeln zu entfernen
+    errors = []
+    for proto in ('tcp', 'udp'):
+        try:
+            # Prüfen, ob die Regel existiert, bevor wir sie löschen
+            run(['iptables', '-t', 'nat', '-C', 'PREROUTING', '-i', extif,
+                '-p', proto, '--dport', ext_port,
+                '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
+            # Wenn ja, entfernen
+            run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
+                '-p', proto, '--dport', ext_port,
+                '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
+        except RuntimeError:
+            errors.append(f"{proto.upper()}-NAT-Regel nicht gefunden")
+            
+        try:
+            # Prüfen, ob die Forward-Regel existiert
+            run(['iptables', '-C', 'FORWARD', '-i', extif, '-o', intif,
+                '-p', proto, '--dport', int_port, '-d', int_ip,
+                '-j', 'ACCEPT'])
+            # Wenn ja, entfernen
+            run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
+                '-p', proto, '--dport', int_port, '-d', int_ip,
+                '-j', 'ACCEPT'])
+        except RuntimeError:
+            errors.append(f"{proto.upper()}-FORWARD-Regel nicht gefunden")
+
+    # Benutzer informieren
+    if old_rules_count > len(rules):
+        if errors:
+            flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde aus der Konfiguration entfernt, aber: {', '.join(errors)}")
+        else:
+            flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde vollständig entfernt.")
+    else:
+        flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde nicht gefunden.")
+        
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
     if not sys.platform.startswith('linux'):
         print("Only runs on Linux.")
         sys.exit(1)
+        
+    # Regeln beim Start wiederherstellen, nicht erst bei der ersten Anfrage
+    restore_persistent_rules()
+    
     app.run(host='0.0.0.0', port=5000)
