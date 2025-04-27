@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
-# Ein Setup-Skript, um WireGuard zu installieren und das Interface wg0 automatisch zu aktivieren und zu starten
-# inklusive Installation aller erforderlichen Pakete.
+# A setup script to install WireGuard and automatically activate and start the wg0 interface
+# including installation of all required packages.
 
 set -e
 
-# Update Paketlisten
+# Update package lists
 sudo apt update
 
-# Installation der benötigten Pakete: WireGuard, Flask und netifaces
+# Installation of required packages: WireGuard, Flask and netifaces
 sudo apt install -y wireguard python3-flask python3-netifaces
 
-# WireGuard wg-quick Service aktivieren und starten
+# Enable and start WireGuard wg-quick service
 sudo systemctl start wg-quick@wg0.service
 sudo systemctl enable wg-quick@wg0.service
 
-echo "Setup erfolgreich: WireGuard installiert, Pakete installiert und Interface wg0 aktiviert sowie gestartet."
+echo "Setup successful: WireGuard installed, packages installed and interface wg0 activated and started."
