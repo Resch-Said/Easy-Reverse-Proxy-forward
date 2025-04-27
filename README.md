@@ -3,6 +3,9 @@
 ## Description
 A lightweight reverse proxy that forwards incoming connections to a target server. Designed for users who have a VPS with an IPv4 address but lack a direct IPv4 address for their own server, or who simply want a convenient reverse-proxy setup for a local service.
 
+![image](https://github.com/user-attachments/assets/a19d4333-46bc-4d73-9690-1696987041e9)
+
+
 ## Features
 - Simple configuration: Manage forwarding rules via a minimal Flask web GUI.
 - Persistent rules: Applies iptables rules when the Flask server starts.
