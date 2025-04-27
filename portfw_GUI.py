@@ -44,6 +44,10 @@ TEMPLATE = '''
       input, select { padding: 0.5em; width: 100%; max-width: 300px; }
       button { padding: 0.5em 1em; margin-top: 1em; }
       .msg { color: red; }
+      .active { color: green; font-weight: bold; }
+      .inactive { color: gray; font-style: italic; }
+      .actions form { display: inline; margin: 0; }
+      .actions button { margin: 0 0.2em; }
     </style>
   </head>
   <body>
@@ -81,13 +85,16 @@ TEMPLATE = '''
 
     <h2>Current Rules</h2>
     <table>
-      <tr><th>Type</th><th>External</th><th>Target</th><th>Action</th></tr>
+      <tr><th>Type</th><th>External</th><th>Target</th><th>Status</th><th>Actions</th></tr>
       {% for r in rules %}
       <tr>
         <td>TCP/UDP</td>
         <td>{{ r['extif'] }}:{{ r['ext_port'] }}</td>
         <td>{{ r['int_ip'] }}:{{ r['int_port'] }}</td>
-        <td>
+        <td class="{{ 'active' if r.get('enabled', True) else 'inactive' }}">
+          {{ 'Active' if r.get('enabled', True) else 'Inactive' }}
+        </td>
+        <td class="actions">
           <form method="post" action="/del" style="display:inline;">
             <input type="hidden" name="extif" value="{{ r['extif'] }}">
             <input type="hidden" name="intif" value="{{ r['intif'] }}">
@@ -96,6 +103,26 @@ TEMPLATE = '''
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
             <button type="submit">Remove</button>
           </form>
+          
+          {% if r.get('enabled', True) %}
+          <form method="post" action="/disable" style="display:inline;">
+            <input type="hidden" name="extif" value="{{ r['extif'] }}">
+            <input type="hidden" name="intif" value="{{ r['intif'] }}">
+            <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
+            <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
+            <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
+            <button type="submit">Disable</button>
+          </form>
+          {% else %}
+          <form method="post" action="/enable" style="display:inline;">
+            <input type="hidden" name="extif" value="{{ r['extif'] }}">
+            <input type="hidden" name="intif" value="{{ r['intif'] }}">
+            <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
+            <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
+            <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
+            <button type="submit">Enable</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -169,29 +196,31 @@ def restore_persistent_rules():
     rules = load_persisted_rules()
     print(f"Gefundene Regeln: {len(rules)}")
     for rule in rules:
-        try:
-            # Zuerst löschen wir eventuell vorhandene Regeln, um Duplikate zu vermeiden
+        # Nur aktive Regeln wiederherstellen
+        if rule.get('enabled', True):  # Standard ist aktiv für Abwärtskompatibilität
             try:
-                for proto in ('tcp', 'udp'):
-                    # NAT-Regel löschen
-                    run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', rule['extif'],
-                        '-p', proto, '--dport', rule['ext_port'],
-                        '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
-                    # Forward-Regel löschen
-                    run(['iptables', '-D', 'FORWARD', '-i', rule['extif'], '-o', rule['intif'],
-                        '-p', proto, '--dport', rule['int_port'], '-d', rule['int_ip'],
-                        '-j', 'ACCEPT'])
-            except RuntimeError:
-                # Ignorieren, wenn die Regeln nicht existieren
-                pass
+                # Zuerst löschen wir eventuell vorhandene Regeln, um Duplikate zu vermeiden
+                try:
+                    for proto in ('tcp', 'udp'):
+                        # NAT-Regel löschen
+                        run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', rule['extif'],
+                            '-p', proto, '--dport', rule['ext_port'],
+                            '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
+                        # Forward-Regel löschen
+                        run(['iptables', '-D', 'FORWARD', '-i', rule['extif'], '-o', rule['intif'],
+                            '-p', proto, '--dport', rule['int_port'], '-d', rule['int_ip'],
+                            '-j', 'ACCEPT'])
+                except RuntimeError:
+                    # Ignorieren, wenn die Regeln nicht existieren
+                    pass
 
-            # Dann neue Regeln hinzufügen
-            apply_rule(rule)
-            print(f"Regel wiederhergestellt: {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
-        except RuntimeError as e:
-            print(f"Fehler beim Wiederherstellen der Regel: {str(e)}")
-            # Wir lassen die Regel trotzdem in der Persistenzdatei, da sie möglicherweise
-            # später manuell wiederhergestellt werden kann
+                # Dann neue Regeln hinzufügen
+                apply_rule(rule)
+                print(f"Regel wiederhergestellt: {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
+            except RuntimeError as e:
+                print(f"Fehler beim Wiederherstellen der Regel: {str(e)}")
+        else:
+            print(f"Regel übersprungen (deaktiviert): {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
 
 @app.route('/')
 def index():
@@ -276,6 +305,76 @@ def delete():
     else:
         flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde nicht gefunden.")
         
+    return redirect(url_for('index'))
+
+@app.route('/enable', methods=['POST'])
+def enable_rule():
+    extif    = request.form['extif']
+    intif    = request.form['intif']
+    ext_port = request.form['ext_port']
+    int_ip   = request.form['int_ip']
+    int_port = request.form['int_port']
+    
+    # Regel in der persistenten Speicherung aktualisieren
+    rules = load_persisted_rules()
+    for rule in rules:
+        if (rule['extif'] == extif and rule['intif'] == intif and 
+            rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
+            rule['int_port'] == int_port):
+            # Regel aktivieren und den Status auf "enabled" setzen
+            rule['enabled'] = True
+            try:
+                apply_rule(rule)
+                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde aktiviert.")
+            except RuntimeError as e:
+                flash(f"Fehler beim Aktivieren der Regel: {str(e)}")
+            break
+    
+    save_persisted_rules(rules)
+    return redirect(url_for('index'))
+
+@app.route('/disable', methods=['POST'])
+def disable_rule():
+    extif    = request.form['extif']
+    intif    = request.form['intif']
+    ext_port = request.form['ext_port']
+    int_ip   = request.form['int_ip']
+    int_port = request.form['int_port']
+    
+    # Regel in der persistenten Speicherung als deaktiviert markieren
+    rules = load_persisted_rules()
+    for rule in rules:
+        if (rule['extif'] == extif and rule['intif'] == intif and 
+            rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
+            rule['int_port'] == int_port):
+            # Status auf "disabled" setzen
+            rule['enabled'] = False
+            # iptables-Regeln entfernen
+            errors = []
+            for proto in ('tcp', 'udp'):
+                try:
+                    # NAT-Regel entfernen
+                    run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
+                        '-p', proto, '--dport', ext_port,
+                        '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
+                except RuntimeError:
+                    errors.append(f"{proto.upper()}-NAT-Regel nicht gefunden")
+                
+                try:
+                    # Forward-Regel entfernen
+                    run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
+                        '-p', proto, '--dport', int_port, '-d', int_ip,
+                        '-j', 'ACCEPT'])
+                except RuntimeError:
+                    errors.append(f"{proto.upper()}-FORWARD-Regel nicht gefunden")
+            
+            if errors:
+                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde deaktiviert, aber: {', '.join(errors)}")
+            else:
+                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde deaktiviert.")
+            break
+    
+    save_persisted_rules(rules)
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
