@@ -176,7 +176,7 @@ def index():
     # Network interfaces
     all_if = netifaces.interfaces()
     externals = [i for i in all_if if i != 'lo']
-    internals = [i for i in all_if if i.startswith('wg')]
+    internals = [i for i in all_if if i.startswith('wg') or i.startswith('tun') or i.startswith('tap')]
     # Display persistent rules
     rules = load_persisted_rules()
     return render_template_string(TEMPLATE, externals=externals, internals=internals, rules=rules)
