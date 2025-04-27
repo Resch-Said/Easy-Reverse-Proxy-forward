@@ -8,7 +8,7 @@ A lightweight reverse proxy that forwards incoming connections to a target serve
 - Persistent rules: Applies iptables rules when the Flask server starts.
 
 ## Prerequisites
-- A VPS with an IPv4 address and root (or sudo) access.
+- A VPS with an IPv4/IPv6 address and root (or sudo) access.
 - A target server (local or remote) that you want to expose.
 - A secure tunnel between the VPS and target server, for example WireGuard or OpenVPN.
 
