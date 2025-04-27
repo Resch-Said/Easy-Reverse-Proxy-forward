@@ -77,6 +77,13 @@ TEMPLATE = '''
           {% endfor %}
         </select>
       </label>
+      <label>Protocol:
+        <select name="protocol">
+          <option value="both">TCP & UDP</option>
+          <option value="tcp">TCP only</option>
+          <option value="udp">UDP only</option>
+        </select>
+      </label>
       <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
       <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
       <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
@@ -88,7 +95,7 @@ TEMPLATE = '''
       <tr><th>Type</th><th>External</th><th>Target</th><th>Status</th><th>Actions</th></tr>
       {% for r in rules %}
       <tr>
-        <td>TCP/UDP</td>
+        <td>{{ r.get('protocol', 'both')|upper if r.get('protocol', 'both') != 'both' else 'TCP/UDP' }}</td>
         <td>{{ r['extif'] }}:{{ r['ext_port'] }}</td>
         <td>{{ r['int_ip'] }}:{{ r['int_port'] }}</td>
         <td class="{{ 'active' if r.get('enabled', True) else 'inactive' }}">
@@ -101,6 +108,7 @@ TEMPLATE = '''
             <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
+            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
             <button type="submit">Remove</button>
           </form>
           
@@ -111,6 +119,7 @@ TEMPLATE = '''
             <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
+            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
             <button type="submit">Disable</button>
           </form>
           {% else %}
@@ -120,6 +129,7 @@ TEMPLATE = '''
             <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
+            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
             <button type="submit">Enable</button>
           </form>
           {% endif %}
@@ -155,9 +165,19 @@ def apply_rule(rule):
     ext_port = rule['ext_port']
     int_ip = rule['int_ip']
     int_port = rule['int_port']
+    protocol = rule.get('protocol', 'both')  # Default to 'both' for backward compatibility
+    
     # Enable IP forwarding
     run(['sysctl', '-w', 'net.ipv4.ip_forward=1'])
-    for proto in ('tcp', 'udp'):
+    
+    # Determine which protocols to apply
+    protocols = []
+    if protocol == 'both':
+        protocols = ['tcp', 'udp']
+    else:
+        protocols = [protocol]  # Only apply the selected protocol
+    
+    for proto in protocols:
         # NAT PREROUTING
         try:
             run(['iptables', '-t', 'nat', '-C', 'PREROUTING', '-i', extif,
@@ -188,39 +208,39 @@ def apply_rule(rule):
 
 @app.before_first_request
 def restore_persistent_rules_on_first_request():
-    # Diese Funktion wird nur zur Kompatibilität mit älteren Flask-Versionen beibehalten
+    # This function is kept only for compatibility with older Flask versions
     pass
 
 def restore_persistent_rules():
-    print("Wiederherstellung der persistenten Regeln...")
+    print("Restoring persistent rules...")
     rules = load_persisted_rules()
-    print(f"Gefundene Regeln: {len(rules)}")
+    print(f"Found rules: {len(rules)}")
     for rule in rules:
-        # Nur aktive Regeln wiederherstellen
-        if rule.get('enabled', True):  # Standard ist aktiv für Abwärtskompatibilität
+        # Only restore active rules
+        if rule.get('enabled', True):  # Default is active for backward compatibility
             try:
-                # Zuerst löschen wir eventuell vorhandene Regeln, um Duplikate zu vermeiden
+                # First delete any existing rules to avoid duplicates
                 try:
                     for proto in ('tcp', 'udp'):
-                        # NAT-Regel löschen
+                        # Delete NAT rule
                         run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', rule['extif'],
                             '-p', proto, '--dport', rule['ext_port'],
                             '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
-                        # Forward-Regel löschen
+                        # Delete Forward rule
                         run(['iptables', '-D', 'FORWARD', '-i', rule['extif'], '-o', rule['intif'],
                             '-p', proto, '--dport', rule['int_port'], '-d', rule['int_ip'],
                             '-j', 'ACCEPT'])
                 except RuntimeError:
-                    # Ignorieren, wenn die Regeln nicht existieren
+                    # Ignore if the rules do not exist
                     pass
 
-                # Dann neue Regeln hinzufügen
+                # Then add new rules
                 apply_rule(rule)
-                print(f"Regel wiederhergestellt: {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
+                print(f"Rule restored: {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
             except RuntimeError as e:
-                print(f"Fehler beim Wiederherstellen der Regel: {str(e)}")
+                print(f"Error restoring rule: {str(e)}")
         else:
-            print(f"Regel übersprungen (deaktiviert): {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
+            print(f"Rule skipped (disabled): {rule['extif']}:{rule['ext_port']} → {rule['int_ip']}:{rule['int_port']}")
 
 @app.route('/')
 def index():
@@ -234,13 +254,22 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add():
-    extif   = request.form['extif']
-    intif   = request.form['intif']
-    ext_port= request.form['ext_port']
-    int_ip  = request.form['int_ip']
-    int_port= request.form['int_port']
-    new_rule = {'extif': extif, 'intif': intif, 'ext_port': ext_port,
-                'int_ip': int_ip, 'int_port': int_port}
+    extif    = request.form['extif']
+    intif    = request.form['intif']
+    ext_port = request.form['ext_port']
+    int_ip   = request.form['int_ip']
+    int_port = request.form['int_port']
+    protocol = request.form['protocol']  # 'both', 'tcp', or 'udp'
+    
+    new_rule = {
+        'extif': extif, 
+        'intif': intif, 
+        'ext_port': ext_port,
+        'int_ip': int_ip, 
+        'int_port': int_port,
+        'protocol': protocol
+    }
+    
     try:
         apply_rule(new_rule)
     except RuntimeError as e:
@@ -248,10 +277,29 @@ def add():
         return redirect(url_for('index'))
     # Update persistence
     rules = load_persisted_rules()
-    if new_rule not in rules:
+    
+    # Check if the rule already exists (without considering the new protocol field)
+    existing_rule = None
+    for rule in rules:
+        if (rule['extif'] == extif and rule['intif'] == intif and 
+            rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
+            rule['int_port'] == int_port):
+            existing_rule = rule
+            break
+    
+    if existing_rule:
+        # Update existing rule with the new protocol
+        existing_rule['protocol'] = protocol
+    else:
+        # Add new rule
         rules.append(new_rule)
-        save_persisted_rules(rules)
-    flash(f"Rule TCP/UDP {extif}:{ext_port} → {int_ip}:{int_port} added.")
+    
+    save_persisted_rules(rules)
+    
+    # User-friendly protocol name for the message
+    proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
+    flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} added.")
+    
     return redirect(url_for('index'))
 
 @app.route('/del', methods=['POST'])
@@ -261,49 +309,60 @@ def delete():
     ext_port = request.form['ext_port']
     int_ip   = request.form['int_ip']
     int_port = request.form['int_port']
+    protocol = request.form.get('protocol', 'both')  # Default is 'both' for backward compatibility
     
-    # Update persistence first - immer die Regel aus der JSON entfernen
+    # Update persistence first - always remove the rule from the JSON
     rules = load_persisted_rules()
     old_rules_count = len(rules)
     rules = [r for r in rules if not (r['extif']==extif and r['intif']==intif \
               and r['ext_port']==ext_port and r['int_ip']==int_ip and r['int_port']==int_port)]
     save_persisted_rules(rules)
     
-    # Jetzt versuchen, die iptables-Regeln zu entfernen
+    # Determine which protocols to remove
+    protocols = []
+    if protocol == 'both':
+        protocols = ['tcp', 'udp']
+    else:
+        protocols = [protocol]  # Only remove the selected protocol
+    
+    # Now try to remove the iptables rules
     errors = []
-    for proto in ('tcp', 'udp'):
+    for proto in protocols:
         try:
-            # Prüfen, ob die Regel existiert, bevor wir sie löschen
+            # Check if the rule exists before we delete it
             run(['iptables', '-t', 'nat', '-C', 'PREROUTING', '-i', extif,
                 '-p', proto, '--dport', ext_port,
                 '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
-            # Wenn ja, entfernen
+            # If yes, remove
             run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
                 '-p', proto, '--dport', ext_port,
                 '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
         except RuntimeError:
-            errors.append(f"{proto.upper()}-NAT-Regel nicht gefunden")
+            errors.append(f"{proto.upper()}-NAT rule not found")
             
         try:
-            # Prüfen, ob die Forward-Regel existiert
+            # Check if the Forward rule exists
             run(['iptables', '-C', 'FORWARD', '-i', extif, '-o', intif,
                 '-p', proto, '--dport', int_port, '-d', int_ip,
                 '-j', 'ACCEPT'])
-            # Wenn ja, entfernen
+            # If yes, remove
             run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
                 '-p', proto, '--dport', int_port, '-d', int_ip,
                 '-j', 'ACCEPT'])
         except RuntimeError:
-            errors.append(f"{proto.upper()}-FORWARD-Regel nicht gefunden")
+            errors.append(f"{proto.upper()}-FORWARD rule not found")
 
-    # Benutzer informieren
+    # User-friendly protocol name for the message
+    proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
+    
+    # Inform the user
     if old_rules_count > len(rules):
         if errors:
-            flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde aus der Konfiguration entfernt, aber: {', '.join(errors)}")
+            flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} removed from configuration, but: {', '.join(errors)}")
         else:
-            flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde vollständig entfernt.")
+            flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} completely removed.")
     else:
-        flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde nicht gefunden.")
+        flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} not found.")
         
     return redirect(url_for('index'))
 
@@ -314,20 +373,23 @@ def enable_rule():
     ext_port = request.form['ext_port']
     int_ip   = request.form['int_ip']
     int_port = request.form['int_port']
+    protocol = request.form.get('protocol', 'both')  # Default is 'both' for backward compatibility
     
-    # Regel in der persistenten Speicherung aktualisieren
+    # Update the rule in persistent storage
     rules = load_persisted_rules()
     for rule in rules:
         if (rule['extif'] == extif and rule['intif'] == intif and 
             rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
             rule['int_port'] == int_port):
-            # Regel aktivieren und den Status auf "enabled" setzen
+            # Enable the rule and set status to "enabled"
             rule['enabled'] = True
             try:
                 apply_rule(rule)
-                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde aktiviert.")
+                # User-friendly protocol name for the message
+                proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
+                flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} enabled.")
             except RuntimeError as e:
-                flash(f"Fehler beim Aktivieren der Regel: {str(e)}")
+                flash(f"Error enabling rule: {str(e)}")
             break
     
     save_persisted_rules(rules)
@@ -340,38 +402,50 @@ def disable_rule():
     ext_port = request.form['ext_port']
     int_ip   = request.form['int_ip']
     int_port = request.form['int_port']
+    protocol = request.form.get('protocol', 'both')  # Default is 'both' for backward compatibility
     
-    # Regel in der persistenten Speicherung als deaktiviert markieren
+    # Mark the rule as disabled in persistent storage
     rules = load_persisted_rules()
     for rule in rules:
         if (rule['extif'] == extif and rule['intif'] == intif and 
             rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
             rule['int_port'] == int_port):
-            # Status auf "disabled" setzen
+            # Set status to "disabled"
             rule['enabled'] = False
-            # iptables-Regeln entfernen
+            
+            # Determine which protocols to remove
+            protocols = []
+            if protocol == 'both':
+                protocols = ['tcp', 'udp']
+            else:
+                protocols = [protocol]  # Only remove the selected protocol
+                
+            # Remove iptables rules
             errors = []
-            for proto in ('tcp', 'udp'):
+            for proto in protocols:
                 try:
-                    # NAT-Regel entfernen
+                    # Remove NAT rule
                     run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
                         '-p', proto, '--dport', ext_port,
                         '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
                 except RuntimeError:
-                    errors.append(f"{proto.upper()}-NAT-Regel nicht gefunden")
+                    errors.append(f"{proto.upper()}-NAT rule not found")
                 
                 try:
-                    # Forward-Regel entfernen
+                    # Remove Forward rule
                     run(['iptables', '-D', 'FORWARD', '-i', extif, '-o', intif,
                         '-p', proto, '--dport', int_port, '-d', int_ip,
                         '-j', 'ACCEPT'])
                 except RuntimeError:
-                    errors.append(f"{proto.upper()}-FORWARD-Regel nicht gefunden")
+                    errors.append(f"{proto.upper()}-FORWARD rule not found")
+            
+            # User-friendly protocol name for the message
+            proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
             
             if errors:
-                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde deaktiviert, aber: {', '.join(errors)}")
+                flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} disabled, but: {', '.join(errors)}")
             else:
-                flash(f"Regel {extif}:{ext_port} → {int_ip}:{int_port} wurde deaktiviert.")
+                flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} disabled.")
             break
     
     save_persisted_rules(rules)
@@ -382,7 +456,7 @@ if __name__ == '__main__':
         print("Only runs on Linux.")
         sys.exit(1)
         
-    # Regeln beim Start wiederherstellen, nicht erst bei der ersten Anfrage
+    # Restore rules at startup, not just at the first request
     restore_persistent_rules()
     
     app.run(host='0.0.0.0', port=5000)
