@@ -3,16 +3,16 @@
 """
 portfw_gui.py (persistent)
 
-Ein einfaches Web-GUI für das Hinzufügen/Entfernen von TCP/UDP-Port-Forwarding-Regeln via iptables,
-mit Persistenz über Reboots hinweg.
-Benötigt: flask, netifaces
+A simple Web GUI for adding/removing TCP/UDP port forwarding rules via iptables,
+with persistence across reboots.
+Requirements: flask, netifaces
 Installation:
     pip3 install flask netifaces
 
-Aufruf:
+Usage:
     sudo python3 portfw_gui_persistent.py
 
-Danach im Browser öffnen unter http://<VPS_IP>:5000
+Then open in browser at http://<VPS_IP>:5000
 """
 import os
 import sys
@@ -24,14 +24,14 @@ from flask import Flask, request, redirect, url_for, render_template_string, fla
 app = Flask(__name__)
 app.secret_key = 'replace-with-secure-key'
 
-# Pfad zur Persistenzdatei
+# Path to persistence file
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 RULES_FILE = os.path.join(SCRIPT_DIR, 'rules.json')
 
 # HTML-Template
 TEMPLATE = '''
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <title>PortFW GUI</title>
@@ -58,30 +58,30 @@ TEMPLATE = '''
       {% endif %}
     {% endwith %}
     <form method="post" action="/add">
-      <h2>Neue Regel hinzufügen</h2>
-      <label>Externes Interface:
+      <h2>Add New Rule</h2>
+      <label>External Interface:
         <select name="extif">
           {% for iface in externals %}
             <option value="{{ iface }}">{{ iface }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>Internes WireGuard-Interface:
+      <label>Internal WireGuard Interface:
         <select name="intif">
           {% for iface in internals %}
             <option value="{{ iface }}">{{ iface }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>Externer Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
-      <label>Interne Ziel-IP: <input type="text" name="int_ip" placeholder="z.B. 192.168.178.84" required></label>
-      <label>Interner Ziel-Port: <input type="number" name="int_port" min="1" max="65535" required></label>
-      <button type="submit">Hinzufügen</button>
+      <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
+      <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
+      <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
+      <button type="submit">Add</button>
     </form>
 
-    <h2>Aktuelle Regeln</h2>
+    <h2>Current Rules</h2>
     <table>
-      <tr><th>Typ</th><th>Extern</th><th>Ziel</th><th>Aktion</th></tr>
+      <tr><th>Type</th><th>External</th><th>Target</th><th>Action</th></tr>
       {% for r in rules %}
       <tr>
         <td>TCP/UDP</td>
@@ -94,7 +94,7 @@ TEMPLATE = '''
             <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
-            <button type="submit">Entfernen</button>
+            <button type="submit">Remove</button>
           </form>
         </td>
       </tr>
@@ -108,9 +108,9 @@ def run(cmd):
     try:
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Befehl fehlgeschlagen: {' '.join(cmd)}\n{e.output}")
+        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{e.output}")
 
-# Persistenzfunktionen
+# Persistence functions
 def load_persisted_rules():
     if os.path.exists(RULES_FILE):
         with open(RULES_FILE, 'r') as f:
@@ -121,14 +121,14 @@ def save_persisted_rules(rules):
     with open(RULES_FILE, 'w') as f:
         json.dump(rules, f, indent=2)
 
-# Regel-Anwendungslogik (wird sowohl beim Hinzufügen als auch beim Wiederherstellen verwendet)
+# Rule application logic (used for both adding and restoring rules)
 def apply_rule(rule):
     extif = rule['extif']
     intif = rule['intif']
     ext_port = rule['ext_port']
     int_ip = rule['int_ip']
     int_port = rule['int_port']
-    # IP-Forwarding einschalten
+    # Enable IP forwarding
     run(['sysctl', '-w', 'net.ipv4.ip_forward=1'])
     for proto in ('tcp', 'udp'):
         # NAT PREROUTING
@@ -144,12 +144,12 @@ def apply_rule(rule):
             run(['iptables', '-A', 'FORWARD', '-i', extif, '-o', intif,
                  '-p', proto, '--dport', int_port, '-d', int_ip,
                  '-j', 'ACCEPT'])
-    # MASQUERADE auf internem Interface
+    # MASQUERADE on internal interface
     try:
         run(['iptables', '-t', 'nat', '-C', 'POSTROUTING', '-o', intif, '-j', 'MASQUERADE'])
     except RuntimeError:
         run(['iptables', '-t', 'nat', '-A', 'POSTROUTING', '-o', intif, '-j', 'MASQUERADE'])
-    # Rückroute (ESTABLISHED)
+    # Return route (ESTABLISHED)
     try:
         run(['iptables', '-C', 'FORWARD', '-i', intif, '-o', extif,
              '-m', 'conntrack', '--ctstate', 'ESTABLISHED,RELATED',
@@ -164,7 +164,7 @@ def restore_persistent_rules():
     rules = load_persisted_rules()
     for rule in rules:
         try:
-            # Prüfen, ob Regel bereits existiert
+            # Check if rule already exists
             run(['iptables', '-t', 'nat', '-C', 'PREROUTING', '-i', rule['extif'],
                  '-p', 'tcp', '--dport', rule['ext_port'],
                  '-j', 'DNAT', '--to-destination', f"{rule['int_ip']}:{rule['int_port']}"])
@@ -173,11 +173,11 @@ def restore_persistent_rules():
 
 @app.route('/')
 def index():
-    # Netzwerkschnittstellen
+    # Network interfaces
     all_if = netifaces.interfaces()
     externals = [i for i in all_if if i != 'lo']
     internals = [i for i in all_if if i.startswith('wg')]
-    # Anzeigen der persistenten Regeln
+    # Display persistent rules
     rules = load_persisted_rules()
     return render_template_string(TEMPLATE, externals=externals, internals=internals, rules=rules)
 
@@ -195,12 +195,12 @@ def add():
     except RuntimeError as e:
         flash(str(e))
         return redirect(url_for('index'))
-    # Persistenz aktualisieren
+    # Update persistence
     rules = load_persisted_rules()
     if new_rule not in rules:
         rules.append(new_rule)
         save_persisted_rules(rules)
-    flash(f"Regel TCP/UDP {extif}:{ext_port} → {int_ip}:{int_port} hinzugefügt.")
+    flash(f"Rule TCP/UDP {extif}:{ext_port} → {int_ip}:{int_port} added.")
     return redirect(url_for('index'))
 
 @app.route('/del', methods=['POST'])
@@ -211,7 +211,7 @@ def delete():
     int_ip   = request.form['int_ip']
     int_port = request.form['int_port']
     try:
-        # Entfernen der NAT- und FORWARD-Regeln
+        # Remove NAT and FORWARD rules
         for proto in ('tcp', 'udp'):
             run(['iptables', '-t', 'nat', '-D', 'PREROUTING', '-i', extif,
                  '-p', proto, '--dport', ext_port,
@@ -222,16 +222,16 @@ def delete():
     except RuntimeError as e:
         flash(str(e))
         return redirect(url_for('index'))
-    # Persistenz aktualisieren
+    # Update persistence
     rules = load_persisted_rules()
     rules = [r for r in rules if not (r['extif']==extif and r['intif']==intif \
               and r['ext_port']==ext_port and r['int_ip']==int_ip and r['int_port']==int_port)]
     save_persisted_rules(rules)
-    flash(f"Regel {extif}:{ext_port} entfernt.")
+    flash(f"Rule {extif}:{ext_port} removed.")
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
     if not sys.platform.startswith('linux'):
-        print("Nur unter Linux lauffähig.")
+        print("Only runs on Linux.")
         sys.exit(1)
     app.run(host='0.0.0.0', port=5000)
