@@ -66,7 +66,7 @@ TEMPLATE = '''
           {% endfor %}
         </select>
       </label>
-      <label>Internal WireGuard Interface:
+      <label>Internal WireGuard/OpenVPN Interface:
         <select name="intif">
           {% for iface in internals %}
             <option value="{{ iface }}">{{ iface }}</option>
