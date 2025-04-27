@@ -38,8 +38,8 @@ nohup python3 portfw_GUI.py &
 ## WireGuard Setup
 To ensure your WireGuard interface (wg0) starts on boot and is immediately active, enable and start the wg-quick service:
 ```bash
-sudo systemctl enable wg-quick@wg0
 sudo systemctl start wg-quick@wg0
+sudo systemctl enable wg-quick@wg0
 ```
 
 In your WireGuard peer configuration, remove any `AllowedIPs = 0.0.0.0/0, ::/0` entries if you only want to route specific subnets. Leaving `0.0.0.0/0, ::/0` would send all traffic through the tunnel, causing loss of direct access to your VPS unless you configure appropriate routes.

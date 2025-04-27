@@ -12,7 +12,7 @@ sudo apt update
 sudo apt install -y wireguard python3-flask python3-netifaces
 
 # WireGuard wg-quick Service aktivieren und starten
-sudo systemctl enable wg-quick@wg0.service
 sudo systemctl start wg-quick@wg0.service
+sudo systemctl enable wg-quick@wg0.service
 
 echo "Setup erfolgreich: WireGuard installiert, Pakete installiert und Interface wg0 aktiviert sowie gestartet."
