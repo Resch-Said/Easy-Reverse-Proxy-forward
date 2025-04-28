@@ -1,7 +1,7 @@
 # Easy Reverse Proxy forward
 
 ## Description
-A lightweight reverse proxy that forwards incoming connections to a target server. Designed for users who have a VPS with an IPv4 address but lack a direct IPv4 address for their own server, or who simply want a convenient reverse-proxy setup for a local service.
+A lightweight reverse proxy that forwards incoming connections to a target server. Designed for users who have a VPS with an IPv4 address but lack a direct IPv4 address for their own server.
 
 ![image](https://github.com/user-attachments/assets/d204502a-1ab1-4178-a9cf-2550b55fb520)
 
