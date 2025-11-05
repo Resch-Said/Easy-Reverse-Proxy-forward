@@ -27,6 +27,20 @@ app.secret_key = 'replace-with-secure-key'
 # Path to persistence file
 # Use /app/data for Docker volume persistence, fallback to script directory
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data') if os.path.exists('/app/data') else os.path.dirname(os.path.realpath(__file__))
+
+# Ensure DATA_DIR exists and is writable
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    # Test if we can write to the directory
+    test_file = os.path.join(DATA_DIR, '.write_test')
+    with open(test_file, 'w') as f:
+        f.write('test')
+    os.remove(test_file)
+    print(f"✓ DATA_DIR is writable: {DATA_DIR}")
+except Exception as e:
+    print(f"✗ WARNING: DATA_DIR may not be writable: {DATA_DIR}")
+    print(f"  Error: {e}")
+
 RULES_FILE = os.path.join(DATA_DIR, 'rules.json')
 
 # HTML-Template
@@ -156,8 +170,13 @@ def load_persisted_rules():
     return []
 
 def save_persisted_rules(rules):
-    with open(RULES_FILE, 'w') as f:
-        json.dump(rules, f, indent=2)
+    try:
+        with open(RULES_FILE, 'w') as f:
+            json.dump(rules, f, indent=2)
+        print(f"✓ Rules saved successfully to {RULES_FILE}")
+    except Exception as e:
+        print(f"✗ ERROR saving rules to {RULES_FILE}: {e}")
+        raise RuntimeError(f"Failed to save rules: {e}")
 
 # Rule application logic (used for both adding and restoring rules)
 def apply_rule(rule):
@@ -250,51 +269,59 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add():
-    extif    = request.form['extif']
-    intif    = request.form['intif']
-    ext_port = request.form['ext_port']
-    int_ip   = request.form['int_ip']
-    int_port = request.form['int_port']
-    protocol = request.form['protocol']  # 'both', 'tcp', or 'udp'
-    
-    new_rule = {
-        'extif': extif, 
-        'intif': intif, 
-        'ext_port': ext_port,
-        'int_ip': int_ip, 
-        'int_port': int_port,
-        'protocol': protocol
-    }
-    
     try:
-        apply_rule(new_rule)
-    except RuntimeError as e:
-        flash(str(e))
-        return redirect(url_for('index'))
-    # Update persistence
-    rules = load_persisted_rules()
-    
-    # Check if the rule already exists (without considering the new protocol field)
-    existing_rule = None
-    for rule in rules:
-        if (rule['extif'] == extif and rule['intif'] == intif and 
-            rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
-            rule['int_port'] == int_port):
-            existing_rule = rule
-            break
-    
-    if existing_rule:
-        # Update existing rule with the new protocol
-        existing_rule['protocol'] = protocol
-    else:
-        # Add new rule
-        rules.append(new_rule)
-    
-    save_persisted_rules(rules)
-    
-    # User-friendly protocol name for the message
-    proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
-    flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} added.")
+        extif    = request.form['extif']
+        intif    = request.form['intif']
+        ext_port = request.form['ext_port']
+        int_ip   = request.form['int_ip']
+        int_port = request.form['int_port']
+        protocol = request.form['protocol']  # 'both', 'tcp', or 'udp'
+        
+        new_rule = {
+            'extif': extif, 
+            'intif': intif, 
+            'ext_port': ext_port,
+            'int_ip': int_ip, 
+            'int_port': int_port,
+            'protocol': protocol
+        }
+        
+        try:
+            apply_rule(new_rule)
+        except RuntimeError as e:
+            flash(f"Error applying iptables rule: {str(e)}")
+            return redirect(url_for('index'))
+        
+        # Update persistence
+        rules = load_persisted_rules()
+        
+        # Check if the rule already exists (without considering the new protocol field)
+        existing_rule = None
+        for rule in rules:
+            if (rule['extif'] == extif and rule['intif'] == intif and 
+                rule['ext_port'] == ext_port and rule['int_ip'] == int_ip and 
+                rule['int_port'] == int_port):
+                existing_rule = rule
+                break
+        
+        if existing_rule:
+            # Update existing rule with the new protocol
+            existing_rule['protocol'] = protocol
+        else:
+            # Add new rule
+            rules.append(new_rule)
+        
+        save_persisted_rules(rules)
+        
+        # User-friendly protocol name for the message
+        proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
+        flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} added.")
+        
+    except Exception as e:
+        print(f"✗ ERROR in /add route: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f"Error adding rule: {str(e)}")
     
     return redirect(url_for('index'))
 
