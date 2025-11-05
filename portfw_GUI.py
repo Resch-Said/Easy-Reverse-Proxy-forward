@@ -77,46 +77,48 @@ TEMPLATE = '''
       {% endif %}
     {% endwith %}
     <form method="post" action="/add">
-      <h2>Add New Rule</h2>
-      <label>External Interface:
-        <select name="extif">
-          {% for iface in externals %}
-            <option value="{{ iface }}">{{ iface }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Internal WireGuard/OpenVPN Interface:
-        <select name="intif">
-          {% for iface in internals %}
-            <option value="{{ iface }}">{{ iface }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Protocol:
-        <select name="protocol">
-          <option value="both">TCP & UDP</option>
-          <option value="tcp">TCP only</option>
-          <option value="udp">UDP only</option>
-        </select>
-      </label>
-      <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
-      <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
-      <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
-      <button type="submit">Add</button>
+            <h2>Add New Rule</h2>
+            <label>Name (optional): <input type="text" name="name" maxlength="64" placeholder="Palworld, Minecraft, ..."></label>
+            <label>External Interface:
+                <select name="extif">
+                    {% for iface in externals %}
+                        <option value="{{ iface }}">{{ iface }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Internal WireGuard/OpenVPN Interface:
+                <select name="intif">
+                    {% for iface in internals %}
+                        <option value="{{ iface }}">{{ iface }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Protocol:
+                <select name="protocol">
+                    <option value="both">TCP & UDP</option>
+                    <option value="tcp">TCP only</option>
+                    <option value="udp">UDP only</option>
+                </select>
+            </label>
+            <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
+            <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
+            <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
+            <button type="submit">Add</button>
     </form>
 
-    <h2>Current Rules</h2>
-    <table>
-      <tr><th>Type</th><th>External</th><th>Target</th><th>Status</th><th>Actions</th></tr>
-      {% for r in rules %}
-      <tr>
-        <td>{{ r.get('protocol', 'both')|upper if r.get('protocol', 'both') != 'both' else 'TCP/UDP' }}</td>
-        <td>{{ r['extif'] }}:{{ r['ext_port'] }}</td>
-        <td>{{ r['int_ip'] }}:{{ r['int_port'] }}</td>
-        <td class="{{ 'active' if r.get('enabled', True) else 'inactive' }}">
-          {{ 'Active' if r.get('enabled', True) else 'Inactive' }}
-        </td>
-        <td class="actions">
+        <h2>Current Rules</h2>
+        <table>
+            <tr><th>Name</th><th>Type</th><th>External</th><th>Target</th><th>Status</th><th>Actions</th></tr>
+            {% for r in rules %}
+            <tr>
+                <td>{{ r.get('name', '') }}</td>
+                <td>{{ r.get('protocol', 'both')|upper if r.get('protocol', 'both') != 'both' else 'TCP/UDP' }}</td>
+                <td>{{ r['extif'] }}:{{ r['ext_port'] }}</td>
+                <td>{{ r['int_ip'] }}:{{ r['int_port'] }}</td>
+                <td class="{{ 'active' if r.get('enabled', True) else 'inactive' }}">
+                    {{ 'Active' if r.get('enabled', True) else 'Inactive' }}
+                </td>
+                <td class="actions">
           <form method="post" action="/del" style="display:inline;">
             <input type="hidden" name="extif" value="{{ r['extif'] }}">
             <input type="hidden" name="intif" value="{{ r['intif'] }}">
@@ -276,16 +278,19 @@ def add():
         int_ip   = request.form['int_ip']
         int_port = request.form['int_port']
         protocol = request.form['protocol']  # 'both', 'tcp', or 'udp'
-        
+        name     = request.form.get('name', '').strip()
+
         new_rule = {
-            'extif': extif, 
-            'intif': intif, 
+            'extif': extif,
+            'intif': intif,
             'ext_port': ext_port,
-            'int_ip': int_ip, 
+            'int_ip': int_ip,
             'int_port': int_port,
             'protocol': protocol
         }
-        
+        if name:
+            new_rule['name'] = name
+
         try:
             apply_rule(new_rule)
         except RuntimeError as e:
@@ -307,6 +312,8 @@ def add():
         if existing_rule:
             # Update existing rule with the new protocol
             existing_rule['protocol'] = protocol
+            if name:
+                existing_rule['name'] = name
         else:
             # Add new rule
             rules.append(new_rule)
