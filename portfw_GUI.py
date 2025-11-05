@@ -25,8 +25,9 @@ app = Flask(__name__)
 app.secret_key = 'replace-with-secure-key'
 
 # Path to persistence file
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-RULES_FILE = os.path.join(SCRIPT_DIR, 'rules.json')
+# Use /app/data for Docker volume persistence, fallback to script directory
+DATA_DIR = os.environ.get('DATA_DIR', '/app/data') if os.path.exists('/app/data') else os.path.dirname(os.path.realpath(__file__))
+RULES_FILE = os.path.join(DATA_DIR, 'rules.json')
 
 # HTML-Template
 TEMPLATE = '''
@@ -205,11 +206,6 @@ def apply_rule(rule):
         run(['iptables', '-A', 'FORWARD', '-i', intif, '-o', extif,
              '-m', 'conntrack', '--ctstate', 'ESTABLISHED,RELATED',
              '-j', 'ACCEPT'])
-
-@app.before_first_request
-def restore_persistent_rules_on_first_request():
-    # This function is kept only for compatibility with older Flask versions
-    pass
 
 def restore_persistent_rules():
     print("Restoring persistent rules...")

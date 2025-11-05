@@ -20,18 +20,11 @@ A lightweight reverse proxy that forwards incoming connections to a target serve
 git clone https://github.com/Resch-Said/Easy-Reverse-Proxy-forward.git
 cd Easy-Reverse-Proxy-forward
 ```
-
-2. Install dependencies
+2. Run the proxy GUI (Background)
 ```bash
-apt install -y python3-flask python3-netifaces
+docker-compose up -d
 ```
-
-3. Run the proxy GUI (Background)
-```bash
-nohup python3 portfw_GUI.py &
-```
-
-4. Access the web interface
+3. Access the web interface
    Open your web browser and navigate to `http://<VPS_IP_or_VPN_IP>:5000`
 
 ## Security Considerations

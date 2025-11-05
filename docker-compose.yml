@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  portfw-gui:
+    build: .
+    container_name: easy-reverse-proxy
+    privileged: true
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./portfw_GUI.py:/app/portfw_GUI.py:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - apparmor:unconfined
