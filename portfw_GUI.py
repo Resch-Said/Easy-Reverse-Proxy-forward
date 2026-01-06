@@ -86,7 +86,7 @@ TEMPLATE = '''
                     {% endfor %}
                 </select>
             </label>
-            <label>Internal WireGuard/OpenVPN Interface:
+            <label>Internal VPN Interface (WireGuard, OpenVPN, Tailscale, etc.):
                 <select name="intif">
                     {% for iface in internals %}
                         <option value="{{ iface }}">{{ iface }}</option>
@@ -264,7 +264,7 @@ def index():
     # Network interfaces
     all_if = netifaces.interfaces()
     externals = [i for i in all_if if i != 'lo']
-    internals = [i for i in all_if if i.startswith('wg') or i.startswith('tun') or i.startswith('tap')]
+    internals = [i for i in all_if if i.startswith('wg') or i.startswith('tun') or i.startswith('tap') or i.startswith('tailscale')]
     # Display persistent rules
     rules = load_persisted_rules()
     return render_template_string(TEMPLATE, externals=externals, internals=internals, rules=rules)

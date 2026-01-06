@@ -12,7 +12,7 @@ A lightweight reverse proxy that forwards incoming connections to a target serve
 ## Prerequisites
 - A VPS with an IPv4/IPv6 address and root (or sudo) access.
 - A target server (local or remote) that you want to expose.
-- A secure tunnel between the VPS and target server, for example WireGuard or OpenVPN.
+- A secure tunnel between the VPS and target server, for example WireGuard, OpenVPN, or Tailscale.
 
 ## Getting Started
 1. Clone the repository
@@ -38,3 +38,11 @@ sudo systemctl enable wg-quick@wg0
 ```
 
 In your WireGuard peer configuration, remove any `AllowedIPs = 0.0.0.0/0, ::/0` entries if you only want to route specific subnets. Leaving `0.0.0.0/0, ::/0` would send all traffic through the tunnel, causing loss of direct access to your VPS unless you configure appropriate routes.
+
+## Tailscale Setup
+Tailscale creates a secure mesh network using WireGuard under the hood. To use Tailscale with this proxy:
+
+1. Install Tailscale on both your VPS and target server.
+2. Authenticate and join your Tailscale network.
+3. The Tailscale interface (usually `tailscale0`) will be automatically detected by the GUI.
+4. Ensure your Tailscale ACLs allow the necessary traffic between devices.
