@@ -209,7 +209,12 @@ def apply_rule(rule):
             run(['iptables', '-t', 'nat', '-A', 'PREROUTING', '-i', extif,
                  '-p', proto, '--dport', ext_port,
                  '-j', 'DNAT', '--to-destination', f"{int_ip}:{int_port}"])
-            # FORWARD
+        # FORWARD
+        try:
+            run(['iptables', '-C', 'FORWARD', '-i', extif, '-o', intif,
+                 '-p', proto, '--dport', int_port, '-d', int_ip,
+                 '-j', 'ACCEPT'])
+        except RuntimeError:
             run(['iptables', '-A', 'FORWARD', '-i', extif, '-o', intif,
                  '-p', proto, '--dport', int_port, '-d', int_ip,
                  '-j', 'ACCEPT'])
