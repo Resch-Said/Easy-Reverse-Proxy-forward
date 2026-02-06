@@ -1,55 +1,55 @@
-# Docker Setup für Easy Reverse Proxy Forward
+# Docker Setup for Easy Reverse Proxy Forward
 
-## Schnellstart mit Docker Compose
+## Quick Start with Docker Compose
 
-1. **Repository klonen:**
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/Resch-Said/Easy-Reverse-Proxy-forward.git
    cd Easy-Reverse-Proxy-forward
    ```
 
-2. **Container starten:**
+2. **Start the container:**
    ```bash
    docker-compose up -d
    ```
 
-3. **Web-Interface öffnen:**
-   Öffne deinen Browser und navigiere zu `http://<VPS_IP>:5000`
+3. **Open the web interface:**
+   Open your browser and navigate to `http://<VPS_IP>:5000`
 
-## Verwaltung
+## Management
 
-- **Container stoppen:**
+- **Stop the container:**
   ```bash
   docker-compose down
   ```
 
-- **Logs anzeigen:**
+- **View logs:**
   ```bash
   docker-compose logs -f
   ```
 
-- **Container neu starten:**
+- **Restart the container:**
   ```bash
   docker-compose restart
   ```
 
-## Wichtige Hinweise
+## Important Notes
 
-### Netzwerkmodus
-Der Container läuft im `host` Netzwerkmodus, um direkten Zugriff auf die Netzwerkinterfaces des Hosts zu haben (z.B. WireGuard, OpenVPN).
+### Network Mode
+The container runs in `host` network mode to allow direct access to the host's network interfaces (e.g., WireGuard, OpenVPN).
 
-### Berechtigungen
-Der Container benötigt privilegierten Zugriff (`privileged: true`) und die Capabilities `NET_ADMIN` und `NET_RAW`, um iptables-Regeln zu verwalten.
+### Permissions
+The container requires privileged access (`privileged: true`) and the `NET_ADMIN` and `NET_RAW` capabilities to manage iptables rules.
 
-### Datenpersistenz
-Die Forwarding-Regeln werden im `./data` Verzeichnis gespeichert und überstehen Container-Neustarts.
+### Data Persistence
+Forwarding rules are stored in the `./data` directory and survive container restarts.
 
-### Sicherheit
-⚠️ **Wichtig:** Öffne Port 5000 nicht in deiner VPS-Firewall! Greife auf die GUI nur über den sicheren VPN-Tunnel zu.
+### Security
+⚠️ **Important:** Do not open port 5000 in your VPS firewall. Only access the GUI over the secure VPN tunnel.
 
-## Docker-Befehle
+## Docker Commands
 
-### Container manuell bauen und starten
+### Manually Build and Start the Container
 ```bash
 docker build -t easy-reverse-proxy .
 docker run -d \
@@ -61,35 +61,35 @@ docker run -d \
   easy-reverse-proxy
 ```
 
-### Container-Status überprüfen
+### Check Container Status
 ```bash
 docker ps
 ```
 
-### In den Container einloggen
+### Enter the Container
 ```bash
 docker exec -it easy-reverse-proxy /bin/bash
 ```
 
-## Voraussetzungen
+## Prerequisites
 
 - Docker Engine (20.10+)
 - Docker Compose (1.29+)
-- Linux Host mit iptables
-- Konfiguriertes VPN (WireGuard/OpenVPN)
+- Linux host with iptables
+- Configured VPN (WireGuard/OpenVPN)
 
-## Fehlerbehebung
+## Troubleshooting
 
-Wenn der Container nicht startet oder keine Regeln anwendet:
+If the container does not start or does not apply rules:
 
-1. Überprüfe die Logs:
+1. Check the logs:
    ```bash
    docker-compose logs
    ```
 
-2. Stelle sicher, dass der Host Linux verwendet (iptables wird benötigt)
+2. Ensure the host is running Linux (iptables is required)
 
-3. Prüfe, ob WireGuard/OpenVPN läuft:
+3. Check whether WireGuard/OpenVPN is running:
    ```bash
    ip addr show
    ```
