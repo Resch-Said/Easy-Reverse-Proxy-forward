@@ -1,7 +1,7 @@
 import traceback
 
 import netifaces
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, redirect, render_template, request, url_for
 
 from app.services.iptables import apply_rule, run
 from app.services.persistence import load_persisted_rules, save_persisted_rules
@@ -49,7 +49,7 @@ def add():
         try:
             apply_rule(new_rule)
         except RuntimeError as exc:
-            flash(f"Error applying iptables rule: {str(exc)}")
+            print(f"✗ ERROR applying iptables rule: {exc}")
             return redirect(url_for("web.index"))
 
         # Update persistence
@@ -81,12 +81,12 @@ def add():
 
         # User-friendly protocol name for the message
         proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
-        flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} added.")
+        print(f"✓ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} added.")
 
     except Exception as exc:
         print(f"✗ ERROR in /add route: {exc}")
         traceback.print_exc()
-        flash(f"Error adding rule: {str(exc)}")
+        print(f"✗ ERROR adding rule: {exc}")
 
     return redirect(url_for("web.index"))
 
@@ -220,14 +220,14 @@ def delete():
     # Inform the user
     if old_rules_count > len(rules):
         if errors:
-            flash(
+            print(
                 f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} removed from "
                 f"configuration, but: {', '.join(errors)}"
             )
         else:
-            flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} completely removed.")
+            print(f"✓ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} removed.")
     else:
-        flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} not found.")
+        print(f"✗ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} not found.")
 
     return redirect(url_for("web.index"))
 
@@ -257,9 +257,9 @@ def enable_rule():
                 apply_rule(rule)
                 # User-friendly protocol name for the message
                 proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
-                flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} enabled.")
+                print(f"✓ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} enabled.")
             except RuntimeError as exc:
-                flash(f"Error enabling rule: {str(exc)}")
+                print(f"✗ ERROR enabling rule: {exc}")
             break
 
     save_persisted_rules(rules)
@@ -350,12 +350,12 @@ def disable_rule():
             proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
 
             if errors:
-                flash(
+                print(
                     f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} disabled, but: "
                     f"{', '.join(errors)}"
                 )
             else:
-                flash(f"Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} disabled.")
+                print(f"✓ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} disabled.")
             break
 
     save_persisted_rules(rules)
