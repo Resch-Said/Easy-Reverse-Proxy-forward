@@ -19,7 +19,7 @@ import sys
 import json
 import subprocess
 import netifaces
-from flask import Flask, request, redirect, url_for, render_template_string, flash
+from flask import Flask, request, redirect, url_for, render_template, flash
 
 app = Flask(__name__)
 app.secret_key = 'replace-with-secure-key'
@@ -43,120 +43,6 @@ except Exception as e:
 
 RULES_FILE = os.path.join(DATA_DIR, 'rules.json')
 
-# HTML-Template
-TEMPLATE = '''
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>PortFW GUI</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 2em; }
-      table { border-collapse: collapse; width: 100%; margin-top: 1em; }
-      th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
-      form { margin-bottom: 2em; }
-      label { display: block; margin-top: 1em; }
-      input, select { padding: 0.5em; width: 100%; max-width: 300px; }
-      button { padding: 0.5em 1em; margin-top: 1em; }
-      .msg { color: red; }
-      .active { color: green; font-weight: bold; }
-      .inactive { color: gray; font-style: italic; }
-      .actions form { display: inline; margin: 0; }
-      .actions button { margin: 0 0.2em; }
-    </style>
-  </head>
-  <body>
-    <h1>PortFW Reverse-Proxy GUI</h1>
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul class="msg">
-        {% for msg in messages %}
-          <li>{{ msg }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-    <form method="post" action="/add">
-            <h2>Add New Rule</h2>
-            <label>Name (optional): <input type="text" name="name" maxlength="64" placeholder="Palworld, Minecraft, ..."></label>
-            <label>External Interface:
-                <select name="extif">
-                    {% for iface in externals %}
-                        <option value="{{ iface }}">{{ iface }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Internal VPN Interface (WireGuard, OpenVPN, Tailscale, etc.):
-                <select name="intif">
-                    {% for iface in internals %}
-                        <option value="{{ iface }}">{{ iface }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Protocol:
-                <select name="protocol">
-                    <option value="both">TCP & UDP</option>
-                    <option value="tcp">TCP only</option>
-                    <option value="udp">UDP only</option>
-                </select>
-            </label>
-            <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
-            <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
-            <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
-            <button type="submit">Add</button>
-    </form>
-
-        <h2>Current Rules</h2>
-        <table>
-            <tr><th>Name</th><th>Type</th><th>External</th><th>Target</th><th>Status</th><th>Actions</th></tr>
-            {% for r in rules %}
-            <tr>
-                <td>{{ r.get('name', '') }}</td>
-                <td>{{ r.get('protocol', 'both')|upper if r.get('protocol', 'both') != 'both' else 'TCP/UDP' }}</td>
-                <td>{{ r['extif'] }}:{{ r['ext_port'] }}</td>
-                <td>{{ r['int_ip'] }}:{{ r['int_port'] }}</td>
-                <td class="{{ 'active' if r.get('enabled', True) else 'inactive' }}">
-                    {{ 'Active' if r.get('enabled', True) else 'Inactive' }}
-                </td>
-                <td class="actions">
-          <form method="post" action="/del" style="display:inline;">
-            <input type="hidden" name="extif" value="{{ r['extif'] }}">
-            <input type="hidden" name="intif" value="{{ r['intif'] }}">
-            <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
-            <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
-            <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
-            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Remove</button>
-          </form>
-          
-          {% if r.get('enabled', True) %}
-          <form method="post" action="/disable" style="display:inline;">
-            <input type="hidden" name="extif" value="{{ r['extif'] }}">
-            <input type="hidden" name="intif" value="{{ r['intif'] }}">
-            <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
-            <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
-            <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
-            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Disable</button>
-          </form>
-          {% else %}
-          <form method="post" action="/enable" style="display:inline;">
-            <input type="hidden" name="extif" value="{{ r['extif'] }}">
-            <input type="hidden" name="intif" value="{{ r['intif'] }}">
-            <input type="hidden" name="ext_port" value="{{ r['ext_port'] }}">
-            <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
-            <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
-            <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Enable</button>
-          </form>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </table>
-  </body>
-</html>
-'''
 
 def run(cmd):
     try:
@@ -267,7 +153,7 @@ def index():
     internals = [i for i in all_if if i.startswith('wg') or i.startswith('tun') or i.startswith('tap') or i.startswith('tailscale')]
     # Display persistent rules
     rules = load_persisted_rules()
-    return render_template_string(TEMPLATE, externals=externals, internals=internals, rules=rules)
+    return render_template('index.html', externals=externals, internals=internals, rules=rules)
 
 @app.route('/add', methods=['POST'])
 def add():

@@ -22,6 +22,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 
 # Copy application files
 COPY portfw_GUI.py /app/
+COPY templates/ /app/templates/
 
 # Create volume mount point for persistent rules
 VOLUME ["/app/data"]
