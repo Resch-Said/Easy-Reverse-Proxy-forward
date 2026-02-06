@@ -17,9 +17,3 @@ class TestConfig(unittest.TestCase):
             finally:
                 config.DATA_DIR = original_data_dir
                 config.RULES_FILE = original_rules_file
-
-    def test_create_app_sets_secret_key(self):
-        from app import create_app
-
-        app_instance = create_app()
-        self.assertTrue(app_instance.config.get("SECRET_KEY"))

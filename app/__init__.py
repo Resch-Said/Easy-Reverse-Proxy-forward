@@ -1,5 +1,4 @@
 import os
-import secrets
 
 from flask import Flask
 
@@ -11,6 +10,5 @@ def create_app():
     ensure_data_dir()
     templates_path = os.path.join(os.path.dirname(__file__), "..", "templates")
     app = Flask(__name__, template_folder=templates_path)
-    app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
     app.register_blueprint(web)
     return app
