@@ -21,6 +21,8 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir -r requirements.txt
 
 # Copy application files
+COPY app/ /app/app/
+COPY main.py /app/
 COPY portfw_GUI.py /app/
 COPY templates/ /app/templates/
 
@@ -31,4 +33,4 @@ VOLUME ["/app/data"]
 EXPOSE 5000
 
 # Run the application
-CMD ["python3", "portfw_GUI.py"]
+CMD ["python3", "main.py"]

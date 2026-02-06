@@ -9,6 +9,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+      - ./app:/app/app:ro
+      - ./main.py:/app/main.py:ro
       - ./portfw_GUI.py:/app/portfw_GUI.py:ro
       - ./templates:/app/templates:ro
     environment:
