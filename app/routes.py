@@ -21,7 +21,70 @@ def index():
     ]
     # Display persistent rules
     rules = load_persisted_rules()
-    return render_template("index.html", externals=externals, internals=internals, rules=rules)
+    edit_index = request.args.get("edit", type=int)
+    edit_rule = None
+    if edit_index is not None and 0 <= edit_index < len(rules):
+        edit_rule = rules[edit_index]
+    return render_template(
+        "index.html",
+        externals=externals,
+        internals=internals,
+        rules=rules,
+        edit_rule=edit_rule,
+        edit_index=edit_index,
+    )
+
+
+def remove_rule_from_iptables(rule):
+    protocol = rule.get("protocol", "both")
+    protocols = ["tcp", "udp"] if protocol == "both" else [protocol]
+
+    for proto in protocols:
+        try:
+            run(
+                [
+                    "iptables",
+                    "-t",
+                    "nat",
+                    "-D",
+                    "PREROUTING",
+                    "-i",
+                    rule["extif"],
+                    "-p",
+                    proto,
+                    "--dport",
+                    rule["ext_port"],
+                    "-j",
+                    "DNAT",
+                    "--to-destination",
+                    f"{rule['int_ip']}:{rule['int_port']}",
+                ]
+            )
+        except RuntimeError:
+            pass
+
+        try:
+            run(
+                [
+                    "iptables",
+                    "-D",
+                    "FORWARD",
+                    "-i",
+                    rule["extif"],
+                    "-o",
+                    rule["intif"],
+                    "-p",
+                    proto,
+                    "--dport",
+                    rule["int_port"],
+                    "-d",
+                    rule["int_ip"],
+                    "-j",
+                    "ACCEPT",
+                ]
+            )
+        except RuntimeError:
+            pass
 
 
 @web.route("/add", methods=["POST"])
@@ -87,6 +150,61 @@ def add():
         print(f"✗ ERROR in /add route: {exc}")
         traceback.print_exc()
         print(f"✗ ERROR adding rule: {exc}")
+
+    return redirect(url_for("web.index"))
+
+
+@web.route("/edit", methods=["POST"])
+def edit():
+    try:
+        rule_index = request.form.get("rule_id", type=int)
+        extif = request.form["extif"]
+        intif = request.form["intif"]
+        ext_port = request.form["ext_port"]
+        int_ip = request.form["int_ip"]
+        int_port = request.form["int_port"]
+        protocol = request.form["protocol"]
+        name = request.form.get("name", "").strip()
+
+        rules = load_persisted_rules()
+        if rule_index is None or rule_index < 0 or rule_index >= len(rules):
+            print("✗ ERROR editing rule: invalid rule index.")
+            return redirect(url_for("web.index"))
+
+        old_rule = rules[rule_index]
+        enabled = old_rule.get("enabled", True)
+
+        updated_rule = {
+            "extif": extif,
+            "intif": intif,
+            "ext_port": ext_port,
+            "int_ip": int_ip,
+            "int_port": int_port,
+            "protocol": protocol,
+            "enabled": enabled,
+        }
+        if name:
+            updated_rule["name"] = name
+
+        if enabled:
+            remove_rule_from_iptables(old_rule)
+            try:
+                apply_rule(updated_rule)
+            except RuntimeError as exc:
+                print(f"✗ ERROR applying updated rule: {exc}")
+                return redirect(url_for("web.index"))
+
+        rules[rule_index] = updated_rule
+        save_persisted_rules(rules)
+
+        proto_name = "TCP/UDP" if protocol == "both" else protocol.upper()
+        print(
+            f"✓ Rule {proto_name} {extif}:{ext_port} → {int_ip}:{int_port} updated."
+        )
+    except Exception as exc:
+        print(f"✗ ERROR in /edit route: {exc}")
+        traceback.print_exc()
+        print(f"✗ ERROR editing rule: {exc}")
 
     return redirect(url_for("web.index"))
 
