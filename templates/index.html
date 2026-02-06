@@ -20,34 +20,40 @@
   </head>
   <body>
     <h1>PortFW Reverse-Proxy GUI</h1>
-    <form method="post" action="/add">
-            <h2>Add New Rule</h2>
-            <label>Name (optional): <input type="text" name="name" maxlength="64" placeholder="Palworld, Minecraft, ..."></label>
+    <form method="post" action="{{ '/edit' if edit_rule else '/add' }}">
+            <h2>{{ 'Edit Rule' if edit_rule else 'Add New Rule' }}</h2>
+            <label>Name (optional): <input type="text" name="name" maxlength="64" placeholder="Palworld, Minecraft, ..." value="{{ edit_rule.get('name', '') if edit_rule else '' }}"></label>
             <label>External Interface:
                 <select name="extif">
                     {% for iface in externals %}
-                        <option value="{{ iface }}">{{ iface }}</option>
+                        <option value="{{ iface }}" {% if edit_rule and edit_rule['extif'] == iface %}selected{% endif %}>{{ iface }}</option>
                     {% endfor %}
                 </select>
             </label>
             <label>Internal VPN Interface (WireGuard, OpenVPN, Tailscale, etc.):
                 <select name="intif">
                     {% for iface in internals %}
-                        <option value="{{ iface }}">{{ iface }}</option>
+                        <option value="{{ iface }}" {% if edit_rule and edit_rule['intif'] == iface %}selected{% endif %}>{{ iface }}</option>
                     {% endfor %}
                 </select>
             </label>
             <label>Protocol:
                 <select name="protocol">
-                    <option value="both">TCP & UDP</option>
-                    <option value="tcp">TCP only</option>
-                    <option value="udp">UDP only</option>
+                    <option value="both" {% if edit_rule and edit_rule.get('protocol', 'both') == 'both' %}selected{% endif %}>TCP & UDP</option>
+                    <option value="tcp" {% if edit_rule and edit_rule.get('protocol', 'both') == 'tcp' %}selected{% endif %}>TCP only</option>
+                    <option value="udp" {% if edit_rule and edit_rule.get('protocol', 'both') == 'udp' %}selected{% endif %}>UDP only</option>
                 </select>
             </label>
-            <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required></label>
-            <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required></label>
-            <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required></label>
-            <button type="submit">Add</button>
+            <label>External Port: <input type="number" name="ext_port" min="1" max="65535" required value="{{ edit_rule['ext_port'] if edit_rule else '' }}"></label>
+            <label>Internal Target IP: <input type="text" name="int_ip" placeholder="e.g. 192.168.178.84" required value="{{ edit_rule['int_ip'] if edit_rule else '' }}"></label>
+            <label>Internal Target Port: <input type="number" name="int_port" min="1" max="65535" required value="{{ edit_rule['int_port'] if edit_rule else '' }}"></label>
+            {% if edit_rule %}
+            <input type="hidden" name="rule_id" value="{{ edit_index }}">
+            {% endif %}
+            <button type="submit">{{ 'Update' if edit_rule else 'Add' }}</button>
+            {% if edit_rule %}
+            <a href="/" style="margin-left: 0.5em;">Cancel</a>
+            {% endif %}
     </form>
 
         <h2>Current Rules</h2>
@@ -63,6 +69,7 @@
                     {{ 'Active' if r.get('enabled', True) else 'Inactive' }}
                 </td>
                 <td class="actions">
+          <a href="/?edit={{ loop.index0 }}">Edit</a>
           <form method="post" action="/del" style="display:inline;">
             <input type="hidden" name="extif" value="{{ r['extif'] }}">
             <input type="hidden" name="intif" value="{{ r['intif'] }}">
