@@ -4,31 +4,181 @@
     <meta charset="utf-8">
     <title>PortFW GUI</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2em; }
-      table { border-collapse: collapse; width: 100%; margin-top: 1em; }
-      th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
-      form { margin-bottom: 2em; }
-      label { display: block; margin-top: 1em; }
-      input, select { padding: 0.5em; width: 100%; max-width: 300px; }
-      button { padding: 0.5em 1em; margin-top: 1em; }
-      .button-link {
-        display: inline-block;
-        padding: 0.5em 1em;
-        margin-top: 1em;
-        color: inherit;
-        text-decoration: none;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        background: #f5f5f5;
-        cursor: pointer;
+      body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        margin: 2em; 
+        background-color: #f9f9f9;
+        color: #333;
       }
-      .button-link:hover { background: #e8e8e8; }
-      .msg { color: red; }
-      .active { color: green; font-weight: bold; }
-      .inactive { color: gray; font-style: italic; }
-      .actions form { display: inline; margin: 0; }
-      .actions button { margin: 0 0.2em; }
-      .actions .button-link { margin: 0 0.2em; }
+      
+      h1, h2 { 
+        color: #2c3e50; 
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 0.5em;
+      }
+      
+      table { 
+        border-collapse: collapse; 
+        width: 100%; 
+        margin-top: 1em;
+        background-color: white;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      th { 
+        background-color: #3498db; 
+        color: white; 
+        padding: 1em; 
+        text-align: left;
+        font-weight: 600;
+      }
+      
+      td { 
+        border: 1px solid #ecf0f1; 
+        padding: 1em; 
+        text-align: left; 
+      }
+      
+      tr:hover { 
+        background-color: #f5f9fc; 
+      }
+      
+      form { 
+        margin-bottom: 2em;
+        background-color: white;
+        padding: 1.5em;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      label { 
+        display: block; 
+        margin-top: 1em;
+        font-weight: 500;
+        margin-bottom: 0.3em;
+      }
+      
+      input, select { 
+        padding: 0.75em; 
+        width: 100%; 
+        max-width: 300px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+      }
+      
+      input:focus, select:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+      }
+      
+      button, .button-link {
+        display: inline-block;
+        padding: 0.75em 1.5em;
+        margin: 0.5em 0.5em 0.5em 0;
+        margin-top: 1em;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        background-color: #3498db;
+        color: white;
+      }
+      
+      button:hover, .button-link:hover {
+        background-color: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+      
+      button:active, .button-link:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+      
+      button[type="submit"] {
+        background-color: #27ae60;
+      }
+      
+      button[type="submit"]:hover {
+        background-color: #229954;
+      }
+      
+      .button-delete, .button-danger {
+        background-color: #e74c3c;
+      }
+      
+      .button-delete:hover, .button-danger:hover {
+        background-color: #c0392b;
+      }
+      
+      .button-secondary {
+        background-color: #95a5a6;
+      }
+      
+      .button-secondary:hover {
+        background-color: #7f8c8d;
+      }
+      
+      .msg { 
+        color: #e74c3c; 
+        font-weight: 600;
+        padding: 1em;
+        background-color: #fadbd8;
+        border-left: 4px solid #e74c3c;
+        border-radius: 4px;
+        margin-top: 1em;
+      }
+      
+      .active { 
+        color: #27ae60; 
+        font-weight: bold; 
+      }
+      
+      .inactive { 
+        color: #95a5a6; 
+        font-style: italic; 
+      }
+      
+      .actions { 
+        text-align: center;
+        white-space: nowrap;
+      }
+      
+      .actions form { 
+        display: inline; 
+        margin: 0; 
+        padding: 0;
+        background: none;
+        box-shadow: none;
+      }
+      
+      .actions button { 
+        margin: 0 0.2em;
+        padding: 0.5em 1em;
+        font-size: 13px;
+      }
+      
+      .actions .button-link { 
+        margin: 0 0.2em;
+        padding: 0.5em 1em;
+        font-size: 13px;
+      }
+      
+      .actions button[type="submit"]:first-child {
+        background-color: #3498db;
+      }
+      
+      .actions button[type="submit"]:first-child:hover {
+        background-color: #2980b9;
+      }
     </style>
   </head>
   <body>
@@ -65,7 +215,7 @@
             {% endif %}
             <button type="submit">{{ 'Update' if edit_rule else 'Add' }}</button>
             {% if edit_rule %}
-            <a href="/" class="button-link" style="margin-left: 0.5em;">Cancel</a>
+            <a href="/" class="button-link button-secondary">Cancel</a>
             {% endif %}
     </form>
 
@@ -90,7 +240,7 @@
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
             <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Remove</button>
+            <button type="submit" class="button-delete">Remove</button>
           </form>
           
           {% if r.get('enabled', True) %}
@@ -101,7 +251,7 @@
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
             <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Disable</button>
+            <button type="submit" class="button-danger">Disable</button>
           </form>
           {% else %}
           <form method="post" action="/enable" style="display:inline;">
@@ -111,7 +261,7 @@
             <input type="hidden" name="int_ip" value="{{ r['int_ip'] }}">
             <input type="hidden" name="int_port" value="{{ r['int_port'] }}">
             <input type="hidden" name="protocol" value="{{ r.get('protocol', 'both') }}">
-            <button type="submit">Enable</button>
+            <button type="submit" class="button-secondary">Enable</button>
           </form>
           {% endif %}
         </td>
