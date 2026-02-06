@@ -20,15 +20,6 @@
   </head>
   <body>
     <h1>PortFW Reverse-Proxy GUI</h1>
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul class="msg">
-        {% for msg in messages %}
-          <li>{{ msg }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
     <form method="post" action="/add">
             <h2>Add New Rule</h2>
             <label>Name (optional): <input type="text" name="name" maxlength="64" placeholder="Palworld, Minecraft, ..."></label>
