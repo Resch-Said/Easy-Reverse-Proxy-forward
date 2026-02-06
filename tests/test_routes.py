@@ -35,6 +35,15 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual("eth0", saved_rules[0]["extif"])
         self.assertEqual("test", saved_rules[0]["name"])
 
+    def test_index_renders_template(self):
+        with (
+            mock.patch("app.routes.netifaces.interfaces", return_value=["lo", "eth0"]),
+            mock.patch("app.routes.load_persisted_rules", return_value=[]),
+        ):
+            response = self.client.get("/")
+
+        self.assertEqual(200, response.status_code)
+
     def test_add_rule_handles_apply_error(self):
         with (
             mock.patch("app.routes.apply_rule", side_effect=RuntimeError("boom")),
